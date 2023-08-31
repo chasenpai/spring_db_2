@@ -12,6 +12,7 @@ import org.springframework.jdbc.core.namedparam.BeanPropertySqlParameterSource;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.jdbc.core.namedparam.SqlParameterSource;
+import org.springframework.jdbc.core.simple.SimpleJdbcInsert;
 import org.springframework.jdbc.support.GeneratedKeyHolder;
 import org.springframework.jdbc.support.KeyHolder;
 import org.springframework.stereotype.Repository;
@@ -24,28 +25,26 @@ import java.util.Optional;
 
 @Repository
 @Slf4j
-public class JdbcTemplateItemRepositoryV2 implements ItemRepository {
+public class JdbcTemplateItemRepositoryV3 implements ItemRepository {
+
+    //SimpleJdbcInsert 사용
 
     private final NamedParameterJdbcTemplate template;
+    private final SimpleJdbcInsert jdbcInsert; //INSERT SQL 을 직접 작성하지 않도록 편리한 기능 제공
 
-    public JdbcTemplateItemRepositoryV2(DataSource dataSource) {
+    public JdbcTemplateItemRepositoryV3(DataSource dataSource) {
         this.template = new NamedParameterJdbcTemplate(dataSource);
+        this.jdbcInsert = new SimpleJdbcInsert(dataSource)
+                .withTableName("item") //테이블명 지정
+                .usingGeneratedKeyColumns("id"); //key 를 생성하는 PK 지정
+                // .usingColumns("item_name", "price", "quantity"); //컬럼 지정 - 특정 값만 저장하고 싶을 때 사용
     }
 
     @Override
     public Item save(Item item) {
-
-        String sql = "insert into item (item_name, price, quantity) " +
-                "values (:itemName, :price, :quantity)";
-
-        //자바빈 프로퍼티 규약을 통해서 자동으로 파라미터 객체를 생성해준다
         SqlParameterSource param = new BeanPropertySqlParameterSource(item);
-        KeyHolder keyHolder = new GeneratedKeyHolder();
-        template.update(sql, param, keyHolder);
-
-        Long key = keyHolder.getKey().longValue();
-        item.setId(key);
-
+        Number key = jdbcInsert.executeAndReturnKey(param);
+        item.setId(key.longValue());
         return item;
     }
 
