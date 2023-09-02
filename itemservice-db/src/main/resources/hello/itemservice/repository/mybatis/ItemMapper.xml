@@ -53,6 +53,7 @@
                     < : &lt;
                     > : &gt;
                     & : &amp;
+                    만약 and 가 먼저 시작된다면 알아서 지워준다
                 -->
                 and price &lt;= #{maxPrice}
 <!--                <![CDATA[-->
