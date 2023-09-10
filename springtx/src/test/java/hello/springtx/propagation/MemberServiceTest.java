@@ -4,6 +4,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.transaction.UnexpectedRollbackException;
 
 import static org.assertj.core.api.Assertions.*;
 import static org.junit.jupiter.api.Assertions.*;
@@ -108,6 +109,43 @@ class MemberServiceTest {
 
         //모두 롤백
         assertTrue(memberRepository.find(username).isEmpty());
+        assertTrue(logRepository.find(username).isEmpty());
+    }
+
+    /**
+     * 논리 트랜잭션 예외 발생 후 복구 시도
+     * MemberService - 트랜잭션 O
+     * MemberRepository - 트랜잭션 O
+     * LogRepository - 트랜잭션 O + 예외발생 + 복구 시도
+     */
+    @Test
+    void recoverExceptionFailed(){
+
+        String username = "로그예외 recoverExceptionFailed";
+
+        assertThatThrownBy(() -> memberService.joinV2(username))
+                .isInstanceOf(UnexpectedRollbackException.class);
+
+        //모두 롤백 - 복구를 하더라도 트랜잭션 동기화 매니저에 rollback only 설정이 되어있다
+        assertTrue(memberRepository.find(username).isEmpty());
+        assertTrue(logRepository.find(username).isEmpty());
+    }
+
+    /**
+     * 별도의 물리 트랜잭션 예외 발생 후 복구 시도
+     * MemberService - 트랜잭션 O
+     * MemberRepository - 트랜잭션 O
+     * LogRepository - 트랜잭션 O + REQUIRES_NEW + 예외발생 + 복구 시도
+     */
+    @Test
+    void recoverExceptionSuccess(){
+
+        String username = "로그예외 recoverExceptionSuccess";
+
+        memberService.joinV2(username);
+
+        //Log 는 롤백되고, Member 만 저장
+        assertTrue(memberRepository.find(username).isPresent());
         assertTrue(logRepository.find(username).isEmpty());
     }
 
