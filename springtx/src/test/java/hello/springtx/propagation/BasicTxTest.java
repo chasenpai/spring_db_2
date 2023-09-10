@@ -8,6 +8,7 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.TransactionStatus;
 import org.springframework.transaction.UnexpectedRollbackException;
 import org.springframework.transaction.interceptor.DefaultTransactionAttribute;
@@ -157,4 +158,31 @@ public class BasicTxTest {
         assertThatThrownBy(() -> txManager.commit(outer))
                 .isInstanceOf(UnexpectedRollbackException.class);
     }
+
+    @Test
+    void innerRollbackRequiresNew() {
+
+        log.info("외부 트랜잭션 시작");
+        TransactionStatus outer = txManager.getTransaction(new DefaultTransactionAttribute());
+        log.info("outer.isNewTransaction() = {}", outer.isNewTransaction()); //true
+
+        log.info("내부 트랜잭션 시작");
+        DefaultTransactionAttribute definition = new DefaultTransactionAttribute();
+        //REQUIRES_NEW - 외부 트랜잭션과 내부 트랜잭션을 완전히 분리해서 사용할 수 있는 옵션
+        definition.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+        TransactionStatus inner = txManager.getTransaction(definition);
+        log.info("inner.isNewTransaction() = {}", inner.isNewTransaction()); //true - 완전히 새로운 트랜잭션
+
+        //내부 트랜잭션이 진행되는 동안 외부 트랜잭션은 잠시 보류
+        log.info("내부 트랜잭션 롤백");
+        txManager.rollback(inner);
+
+        //외부 트랜잭션의 보류가 끝나고 다시 진행
+        log.info("외부 트랜잭션 커밋");
+        txManager.commit(outer);
+
+        //REQUIRES_NEW 옵션을 사용하면 물리 트랜잭션이 명확하게 분리되지만
+        //데이터베이스 커넥션이 동시에 2개 사용된다는 점을 주의해야 한다
+    }
+
 }
